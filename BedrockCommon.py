@@ -153,7 +153,6 @@ def parsed_args_to_simple(args):
 
     return simplified
 
-
 def do_args_match(vtable_args, other):
     if len(vtable_args["args"]) != len(other): return False
 
@@ -163,4 +162,3 @@ def do_args_match(vtable_args, other):
         if arg["type"] != other[index]: return False
 
     return True
-        
