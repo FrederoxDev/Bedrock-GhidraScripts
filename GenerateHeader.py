@@ -2,7 +2,7 @@
 #@author Frederox
 #@category Bedrock
 
-from BedrockCommon import parse_function, create_function_signature
+from BedrockCommon import parse_function, create_function_signature, get_arguments, do_args_match
 import json
 fm = currentProgram.getFunctionManager()
 
@@ -29,13 +29,19 @@ for entry in vtable_data:
         class_functions
     )
 
+    filtered_funcs = filter(
+        lambda f: do_args_match(entry, get_arguments(f)),
+        filtered_funcs
+    )
+
     if (len(filtered_funcs) == 0):
-        # print("Failed to find function '" + entry["name"] + "'")
-        pass
+        virtual_functions.append({
+            "replace_with_filler": True,
+            "name": entry["name"]
+        })
 
     elif (len(filtered_funcs) > 1):
-        # print("Found multiple functions for '" + entry["name"] + "'")
-        pass
+        print("Found multiple functions for '" + entry["name"] + "'")
 
     else:
         virtual_functions.append(filtered_funcs[0])
@@ -50,11 +56,28 @@ file_text += "// Script written by FrederoxDev\n\n"
 last_modifier = ""
 
 class_text = "class " + class_name + " {\n"
+filler_index = 0
+
+signature_set = set()
 
 # Create class Text
 for function in virtual_functions:
+    # For functions which are in the android vtable, but are not in the bds class
+    # Also giving enough information via comment so that if needed, they can be written manually 
+    if type(function) is dict and function["replace_with_filler"]:
+        class_text += "  virtual void filler" + str(filler_index) + "(); // " + function["name"] + "\n"
+        filler_index += 1
+        continue
+
     func_data = parse_function(function)
     signature = create_function_signature(function, func_data)
+
+    # Removes duplicate dtors
+    if signature in signature_set:
+        print("Skipped duplicate function: '" + signature + "'")
+        continue
+    
+    signature_set.add(signature)
 
     # Add argument types to set
     for arg in func_data["args"]:
