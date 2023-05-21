@@ -8,10 +8,24 @@ import json
 
 fm = currentProgram.getFunctionManager()
 symbolTable = currentProgram.getSymbolTable()
+listing = currentProgram.getListing()
+reference_manager = currentProgram.getReferenceManager()
 
 class_name = "Item"
+derived_classes = []
 data_file_path = str(askFile("Vtable Data", "Choose File"))
 vtable_data = None
+
+
+# Get the derived classes
+base_class_descriptor_addr = askAddress(None, "Base class descriptor")
+refs = reference_manager.getAllReferences()
+
+for ref in refs:
+    if ref.getToAddress() == base_class_descriptor_addr:
+        print(ref)
+
+exit()
 
 # Get all functions accosiated with the class
 class_functions = filter(
@@ -19,7 +33,7 @@ class_functions = filter(
     fm.getFunctions(True)
 )
 
-# Reading dumped data from the android vtable
+# Readiata from tng dumped dhe android vtable
 with open(data_file_path, "r") as data_file:
     vtable_data = json.loads(data_file.read())
 

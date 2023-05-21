@@ -1,5 +1,6 @@
 # Library functions for scripts
 
+
 def _split_arguments(s):
     arguments = []
     stack = []
@@ -17,15 +18,19 @@ def _split_arguments(s):
     arguments.append(argument)
     return arguments
 
+
 # With all ", " replaced with ","
 type_aliases = {
     "std::__ndk1::basic_string<char,std::__ndk1::char_traits<char>,std::__ndk1::allocator<char> >": "std::string",
-    "std::basic_string<char,std::char_traits<char>,std::allocator<char> >": "std::string"
+    "std::basic_string<char,std::char_traits<char>,std::allocator<char> >": "std::string",
 }
+
 
 def get_arguments(function):
     comment = function.getComment()
-    parameters_str = _split_arguments(comment[comment.find('(') + 1 : comment.find(')')])
+    parameters_str = _split_arguments(
+        comment[comment.find("(") + 1 : comment.find(")")]
+    )
     new_parameters = []
 
     for parameter_str in parameters_str:
@@ -42,13 +47,18 @@ def get_arguments(function):
         is_reference = "&" in parameter_str
         is_const = "const" in parameter_str
 
-        param_class_name = parameter_str.replace("*", "").replace("&", "").replace("const", "").strip()
+        param_class_name = (
+            parameter_str.replace("*", "").replace("&", "").replace("const", "").strip()
+        )
         stringified = ""
 
-        if is_const: stringified += "const "
+        if is_const:
+            stringified += "const "
         stringified += param_class_name
-        if is_ptr: stringified += "*"
-        if is_reference: stringified += "&"
+        if is_ptr:
+            stringified += "*"
+        if is_reference:
+            stringified += "&"
 
         stringified = stringified.replace(", ", ",")
         param_class_name = param_class_name.replace(", ", ",")
@@ -58,18 +68,21 @@ def get_arguments(function):
             param_class_name = param_class_name.replace(type_name, alias)
 
         if stringified != "":
-            new_parameters.append({
-                "type": stringified,
-                "base_type": param_class_name,
-                "is_struct": is_struct,
-                "is_enum": is_enum,
-                "is_class": is_class
-            })
+            new_parameters.append(
+                {
+                    "type": stringified,
+                    "base_type": param_class_name,
+                    "is_struct": is_struct,
+                    "is_enum": is_enum,
+                    "is_class": is_class,
+                }
+            )
 
     if len(new_parameters) == 1 and new_parameters[0]["type"] == "void":
         new_parameters = []
 
     return new_parameters
+
 
 def parse_function(f):
     comment = f.getComment()
@@ -88,13 +101,20 @@ def parse_function(f):
         "is_private": is_private,
         "is_static": is_static,
         "is_virtual": is_virtual,
-        "is_protected": is_protected
+        "is_protected": is_protected,
     }
-    
+
+
 def parse_function_return(f):
     comment = f.getComment()
-    comment_ret = comment.replace("public: ", "").replace("private: ", "").replace("static ", "").replace("virtual ", "").replace("protected: ", "")
-    comment_ret = comment_ret[0 : comment_ret.find('Item::')]
+    comment_ret = (
+        comment.replace("public: ", "")
+        .replace("private: ", "")
+        .replace("static ", "")
+        .replace("virtual ", "")
+        .replace("protected: ", "")
+    )
+    comment_ret = comment_ret[0 : comment_ret.find("Item::")]
 
     is_return_const = "const" in comment_ret
     is_return_ptr = "*" in comment_ret
@@ -103,14 +123,24 @@ def parse_function_return(f):
     is_return_struct = "struct" in comment_ret
     is_return_class = "class" in comment_ret
 
-    comment_ret = comment_ret.replace("__cdecl", "").replace("class", "").replace("__ptr64", "").replace("enum", "").replace("struct", "").replace("const", "")
+    comment_ret = (
+        comment_ret.replace("__cdecl", "")
+        .replace("class", "")
+        .replace("__ptr64", "")
+        .replace("enum", "")
+        .replace("struct", "")
+        .replace("const", "")
+    )
     comment_ret = comment_ret.replace("*", "").replace("&", "").strip()
 
     base_type = comment_ret
 
-    if is_return_const: comment_ret = "const " + comment_ret
-    if is_return_ptr: comment_ret += "*"
-    if is_return_ref: comment_ret += "&"
+    if is_return_const:
+        comment_ret = "const " + comment_ret
+    if is_return_ptr:
+        comment_ret += "*"
+    if is_return_ref:
+        comment_ret += "&"
 
     comment_ret = comment_ret.replace(", ", ",")
     base_type = base_type.replace(", ", ",")
@@ -124,27 +154,33 @@ def parse_function_return(f):
         "base_type": base_type,
         "is_enum": is_return_enum,
         "is_struct": is_return_struct,
-        "is_class": is_return_class
+        "is_class": is_return_class,
     }
+
 
 def create_function_signature(function, parsed_data):
     signature = ""
-    if parsed_data["is_static"]: signature += "static "
-    if parsed_data["is_virtual"]: signature += "virtual "
+    if parsed_data["is_static"]:
+        signature += "static "
+    if parsed_data["is_virtual"]:
+        signature += "virtual "
 
     if parsed_data["returns"]["type"] != "":
         signature += parsed_data["returns"]["type"] + " "
 
-    signature += function.getName() 
+    signature += function.getName()
 
     args = []
     for arg in parsed_data["args"]:
         args.append(arg["type"])
 
-    stringified_args = str(args).replace("[", "").replace("]", "").replace("u'", "").replace("'", "")
+    stringified_args = (
+        str(args).replace("[", "").replace("]", "").replace("u'", "").replace("'", "")
+    )
     signature += "(" + stringified_args + ");"
 
     return signature
+
 
 def parsed_args_to_simple(args):
     simplified = []
@@ -153,12 +189,82 @@ def parsed_args_to_simple(args):
 
     return simplified
 
+
 def do_args_match(vtable_args, other):
-    if len(vtable_args["args"]) != len(other): return False
+    """
+    Compares the arguments of two functions and checks if they are equivallent
+    """
+    if len(vtable_args["args"]) != len(other):
+        return False
 
     other = parsed_args_to_simple(other)
 
     for index, arg in enumerate(vtable_args["args"]):
-        if arg["type"] != other[index]: return False
+        if arg["type"] != other[index]:
+            return False
 
     return True
+
+
+def find_functions_from_vtable(currentProgram, monitor, vtable_data, class_name):
+    """
+    Finds all functions which have the same definition as was in the android client
+    """
+    all_functions = list(currentProgram.getFunctionManager().getFunctions(True))
+
+    class_functions = filter(
+        lambda f: f.getParentNamespace() is not None
+        and f.getParentNamespace().getName() == class_name,
+        all_functions,
+    )
+
+    monitor.initialize(len(vtable_data))
+    monitor.setMessage("Finding matching functions from the Android Vtable")
+
+    virtual_functions = []
+
+    for entry in vtable_data:
+        monitor.incrementProgress(1)
+
+        filtered_funcs = filter(
+            lambda f: f.getName() == entry["name"]
+            and do_args_match(entry, get_arguments(f)),
+            class_functions,
+        )
+
+        # Function was not found inside of the class itself, last try to find
+        # The function on classes which derive the class, potentially untrustable
+        if len(filtered_funcs) == 0:
+            funcs_with_same_name = []
+
+            for func in all_functions:
+                if entry["name"] == func.getName():
+                    funcs_with_same_name.append(func)
+
+            funcs_with_same_name = filter(
+                lambda f: do_args_match(entry, get_arguments(f)), funcs_with_same_name
+            )
+
+            if len(funcs_with_same_name) == 0:
+                virtual_functions.append(
+                    {"name": entry["name"], "func": None, "trusted": False}
+                )
+
+            else:
+                virtual_functions.append(
+                    {
+                        "name": entry["name"],
+                        "func": funcs_with_same_name[0],
+                        "trusted": False,
+                    }
+                )
+
+        # The function was found directly inside of the class, it likely can be trusted
+        else:
+            virtual_functions.append(
+                {"name": entry["name"], "func": filtered_funcs[0], "trusted": True}
+            )
+
+    return virtual_functions
+
+
