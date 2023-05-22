@@ -1,245 +1,84 @@
-#Generates the header file from Extracted vtable data
-#@author Frederox
-#@category Bedrock
+# Generates a Header from BDS
+# @author Frederox
+# @category Bedrock
 
-from BedrockCommon import parse_function, create_function_signature, get_arguments, do_args_match
-from ghidra.program.model.symbol import SymbolType
+from LibCommon import find_labels_of_class, batch_demangle
+from LibFunctionParser import get_arguments, get_name, do_functions_match, get_return_type
+from LibHeader import HeaderLib
 import json
 
-fm = currentProgram.getFunctionManager()
-symbolTable = currentProgram.getSymbolTable()
-listing = currentProgram.getListing()
-reference_manager = currentProgram.getReferenceManager()
-
 class_name = "Item"
-derived_classes = []
-data_file_path = str(askFile("Vtable Data", "Choose File"))
+
+# Import dumped virtual table from the Android Client
+vtable_data_path = str(askFile("Vtable Data", "Choose File"))
+print("Vtable Path: '" + vtable_data_path + "'")
 vtable_data = None
 
+with open(vtable_data_path, "r") as vtable_file:
+    vtable_data = json.loads(vtable_file.read())
 
-# Get the derived classes
-base_class_descriptor_addr = askAddress(None, "Base class descriptor")
-refs = reference_manager.getAllReferences()
+header_path = str(askFile("Header Output", "Choose File"))
+print("Header Output Path: '" + header_path + "'")
 
-for ref in refs:
-    if ref.getToAddress() == base_class_descriptor_addr:
-        print(ref)
+# Finds all symbols which belong to the class and demangle them into functions
+symbols = find_labels_of_class(currentProgram, monitor, class_name)
+demangled_symbols = batch_demangle(monitor, symbols)
 
-exit()
+# Sort out the symbols into functions and variables
+# Also parse name and arguments for functions
+functions = []
+variables = []
 
-# Get all functions accosiated with the class
-class_functions = filter(
-    lambda f: f.getParentNamespace() is not None and f.getParentNamespace().getName() == class_name, 
-    fm.getFunctions(True)
-)
+monitor.initialize(len(symbols))
+monitor.setMessage("Parsing demangled functions")
 
-# Readiata from tng dumped dhe android vtable
-with open(data_file_path, "r") as data_file:
-    vtable_data = json.loads(data_file.read())
+for i in range(len(symbols)):
+    monitor.incrementProgress(1)
 
-virtual_functions = []
-virtual_function_set = set()
-
-# Link the virtual function from the android vtable to one in the server
-for entry in vtable_data:
-    filtered_funcs = filter(
-        lambda f: f.getName() == entry["name"],
-        class_functions
-    )
-
-    filtered_funcs = filter(
-        lambda f: do_args_match(entry, get_arguments(f)),
-        filtered_funcs
-    )
-
-    if (len(filtered_funcs) == 0):
-        virtual_functions.append({
-            "replace_with_filler": True,
-            "name": entry["name"]
+    # If it contains ( it is a function
+    if "(" in demangled_symbols[i]:
+        functions.append({
+            "mangled": symbols[i],
+            "demangled": demangled_symbols[i],
+            "name": get_name(class_name, demangled_symbols[i]),
+            "args": get_arguments(demangled_symbols[i]),
+            "returns": get_return_type(demangled_symbols[i]),
+            "is_virtual": "virtual" in demangled_symbols[i],
+            "is_static": "static" in demangled_symbols[i],
+            "is_public": "public" in demangled_symbols[i],
+            "is_private": "private" in demangled_symbols[i],
+            "is_protected": "protected" in demangled_symbols[i],
         })
-        virtual_function_set.add(entry["name"])
 
-    elif (len(filtered_funcs) > 1):
-        print("Found multiple functions for '" + entry["name"] + "'")
-
+    # Else it is a variable
     else:
-        virtual_functions.append(filtered_funcs[0])
-        virtual_function_set.add(entry["name"])
+        variables.append({
+            "mangled": symbols[i],
+            "demangled": demangled_symbols[i]
+        })
 
-# Non virtual functions
-non_virtual_functions = filter(
-    lambda f: not (f.getName() in virtual_function_set),
-    class_functions
-)
+# Match virtual functions to demangled functions
+virtual_functions = []
 
-# Sets used to create incomplete types at the top of the file
-class_set = set()
-struct_set = set()
-enum_set = set()
+monitor.initialize(len(vtable_data))
+monitor.setMessage("Matching functions from Vtable to parsed functions")
 
-file_text = "// File automatically generated from GenerateHeader.py\n"
-file_text += "// Script written by FrederoxDev\n\n"
-last_modifier = ""
+for entry in vtable_data:
+    monitor.incrementProgress(1)
 
-class_text = "class " + class_name + " {\n"
-filler_index = 0
-
-signature_set = set()
-
-symbol_map = {
-    "vtable": [
-        {
-            "name": class_name,
-            "address": "",
-            "functions": []
-        }
-    ]
-}
-
-# Create class Text
-for function in virtual_functions:
-    # For functions which are in the android vtable, but are not in the bds class
-    # Also giving enough information via comment so that if needed, they can be written manually 
-    if type(function) is dict and function["replace_with_filler"]:
-        class_text += "  virtual void filler" + str(filler_index) + "() {}; // " + function["name"] + "\n"
-        filler_index += 1
-        symbol_map["vtable"][0]["functions"].append("")
-        continue
-
-    func_data = parse_function(function)
-    signature = create_function_signature(function, func_data)
-
-    # Removes duplicate dtors
-    if signature in signature_set:
-        print("Skipped duplicate function: '" + signature + "'")
-        continue
-    
-    else:
-        signature_set.add(signature)
-
-    # Add symbol for symbol mapping
-    symbols = list(symbolTable.getSymbols(function.getEntryPoint()))
-
-    symbols = filter(
-        lambda s: s.getSymbolType() == SymbolType.LABEL,
-        symbols
+    filtered_func = filter(
+        lambda f: do_functions_match(f, entry),
+        functions
     )
 
-    if len(symbols) != 1:
-        print(signature)
-        for symbol in symbols:
-            print(symbol)
-        print(" ")
+    if len(filtered_func) != 1:
+        print("Failed to find: " + entry["name"])
+        exit(1)
 
-    symbol_map["vtable"][0]["functions"].append(symbols[len(symbols) - 1].getName())
-        
-    # Add argument types to set
-    for arg in func_data["args"]:
-        if arg["is_struct"]: struct_set.add(arg["base_type"])
-        elif arg["is_enum"]: enum_set.add(arg["base_type"]) 
-        elif arg["is_class"]: class_set.add(arg["base_type"]) 
+    virtual_functions.append(filtered_func[0])
 
-    # Add return type to set
-    returns = func_data["returns"]
-    if returns["is_enum"]: enum_set.add(returns["base_type"])
-    elif returns["is_struct"]: struct_set.add(returns["base_type"])
-    elif returns["is_class"]: class_set.add(returns["base_type"])
-
-    if func_data["is_public"] and last_modifier != "public":
-        class_text += "public:\n"
-        last_modifier = "public"
-
-    elif func_data["is_private"] and last_modifier != "private":
-        class_text += "private:\n"
-        last_modifier = "private"
-
-    elif func_data["is_protected"] and last_modifier != "protected":
-        class_text += "protected:\n"
-        last_modifier = "protected"
-
-    class_text += "  " + signature + "\n"
-
-# Place non virtual functions at the end of the class
-for function in non_virtual_functions:
-    func_data = parse_function(function)
-    signature = create_function_signature(function, func_data)
-
-    symbols = list(symbolTable.getSymbols(function.getEntryPoint()))
-
-    symbols = filter(
-        lambda s: s.getSymbolType() == SymbolType.LABEL,
-        symbols
+# Generate header file
+with open(header_path, "w") as header_file:
+    header_file.write(
+        HeaderLib(virtual_functions).to_text()
     )
-
-    if len(symbols) != 1:
-        print(signature)
-        for symbol in symbols:
-            print(symbol)
-        print(" ")
-
-    symbol_map["vtable"][0]["functions"].append(symbols[len(symbols) - 1].getName())
-
-    # Add argument types to set
-    for arg in func_data["args"]:
-        if arg["is_struct"]: struct_set.add(arg["base_type"])
-        elif arg["is_enum"]: enum_set.add(arg["base_type"]) 
-        elif arg["is_class"]: class_set.add(arg["base_type"]) 
-
-    # Add return type to set
-    returns = func_data["returns"]
-    if returns["is_enum"]: enum_set.add(returns["base_type"])
-    elif returns["is_struct"]: struct_set.add(returns["base_type"])
-    elif returns["is_class"]: class_set.add(returns["base_type"])
-
-    if func_data["is_public"] and last_modifier != "public":
-        class_text += "public:\n"
-        last_modifier = "public"
-
-    elif func_data["is_private"] and last_modifier != "private":
-        class_text += "private:\n"
-        last_modifier = "private"
-
-    elif func_data["is_protected"] and last_modifier != "protected":
-        class_text += "protected:\n"
-        last_modifier = "protected"
-
-    class_text += "  " + signature + "\n"
-
-class_text += "};"
-
-file_text += "#include <string>\n"
-
-# Don't include incomplete types inside namespaces
-for item in class_set:
-    if "::" in item:
-        class_set.remove(item)
-
-for item in enum_set:
-    if "::" in item:
-        enum_set.remove(item)
-
-for item in struct_set:
-    if "::" in item:
-        struct_set.remove(item)
-
-# Add Incomplete types
-for class_name_i in class_set:
-    file_text += "class " + class_name_i + ";\n"
-
-for struct_name in struct_set:
-    file_text += "struct " + struct_name + ";\n"
-
-for enum_name in enum_set:
-    file_text += "enum " + enum_name + ";\n"
-
-file_text += "\n"
-file_text += class_text
-
-header_file_path = str(askFile("Header File", "Choose File"))
-symbol_map_path = str(askFile("Symbol Map", "Choose File"))
-
-with open(header_file_path, "w") as header_file:
-    header_file.write(file_text)
-
-with open(symbol_map_path, "w") as symbol_map_file:
-    symbol_map_file.write(json.dumps(symbol_map, indent=4))

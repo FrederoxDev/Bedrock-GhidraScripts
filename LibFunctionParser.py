@@ -86,6 +86,58 @@ def get_arguments(demangled):
     return new_parameters
 
 
+def get_return_type(demangled):
+    demangled = (
+        demangled.replace("public: ", "")
+        .replace("private: ", "")
+        .replace("static ", "")
+        .replace("virtual ", "")
+        .replace("protected: ", "")
+    )
+    demangled = demangled[0 : demangled.find("Item::")]
+
+    is_return_const = "const" in demangled
+    is_return_ptr = "*" in demangled
+    is_return_ref = "&" in demangled
+    is_return_enum = "enum" in demangled
+    is_return_struct = "struct" in demangled
+    is_return_class = "class" in demangled
+
+    demangled = (
+        demangled.replace("__cdecl", "")
+        .replace("class", "")
+        .replace("__ptr64", "")
+        .replace("enum", "")
+        .replace("struct", "")
+        .replace("const", "")
+    )
+    demangled = demangled.replace("*", "").replace("&", "").strip()
+
+    base_type = demangled
+
+    if is_return_const:
+        demangled = "const " + demangled
+    if is_return_ptr:
+        demangled += "*"
+    if is_return_ref:
+        demangled += "&"
+
+    demangled = demangled.replace(", ", ",")
+    base_type = base_type.replace(", ", ",")
+
+    for type_name, alias in type_aliases.items():
+        demangled = demangled.replace(type_name, alias)
+        base_type = base_type.replace(type_name, alias)
+
+    return {
+        "type": demangled,
+        "base_type": base_type,
+        "is_enum": is_return_enum,
+        "is_struct": is_return_struct,
+        "is_class": is_return_class,
+    }
+
+
 def do_functions_match(first, second):
     """
     Checks if two parsed functions are equivallent

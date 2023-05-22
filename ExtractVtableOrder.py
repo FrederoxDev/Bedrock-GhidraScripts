@@ -1,9 +1,9 @@
-#Extracts the order of virtual functions from a vtable
+#Extracts Android
 #@author Frederox
 #@category Bedrock
 
 import json
-from BedrockCommon import get_arguments
+from LibFunctionParser import get_arguments
 
 program = getCurrentProgram()
 function_manager = program.getFunctionManager()
@@ -19,7 +19,7 @@ functions = []
 for i in range(0, offset, 4):
     func_address = program.getListing().getDataAt(start_address.add(i)).getValue()
     func = function_manager.getFunctionContaining(func_address)
-    args = get_arguments(func)
+    args = get_arguments(func.getComment())
 
     functions.append({
         "name": func.getName(),
