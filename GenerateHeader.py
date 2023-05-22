@@ -3,7 +3,12 @@
 # @category Bedrock
 
 from LibCommon import find_labels_of_class, batch_demangle
-from LibFunctionParser import get_arguments, get_name, do_functions_match, get_return_type
+from LibFunctionParser import (
+    get_arguments,
+    get_name,
+    do_functions_match,
+    get_return_type,
+)
 from LibHeader import HeaderLib
 import json
 
@@ -41,28 +46,31 @@ for i in range(len(symbols)):
 
     # If it contains ( it is a function
     if "(" in demangled_symbols[i]:
-        functions.append({
-            "mangled": symbols[i],
-            "demangled": demangled_symbols[i],
-            "name": get_name(class_name, demangled_symbols[i]),
-            "args": get_arguments(demangled_symbols[i]),
-            "returns": get_return_type(demangled_symbols[i]),
-            "is_virtual": "virtual" in demangled_symbols[i],
-            "is_static": "static" in demangled_symbols[i],
-            "is_public": "public" in demangled_symbols[i],
-            "is_private": "private" in demangled_symbols[i],
-            "is_protected": "protected" in demangled_symbols[i],
-        })
+        is_return_const = "const" in demangled_symbols[i].split(")")[1]
+
+        functions.append(
+            {
+                "mangled": symbols[i],
+                "demangled": demangled_symbols[i],
+                "name": get_name(class_name, demangled_symbols[i]),
+                "args": get_arguments(demangled_symbols[i]),
+                "returns": get_return_type(demangled_symbols[i]),
+                "is_const": is_return_const,
+                "is_virtual": "virtual" in demangled_symbols[i],
+                "is_static": "static" in demangled_symbols[i],
+                "is_public": "public" in demangled_symbols[i],
+                "is_private": "private" in demangled_symbols[i],
+                "is_protected": "protected" in demangled_symbols[i],
+            }
+        )
 
     # Else it is a variable
     else:
-        variables.append({
-            "mangled": symbols[i],
-            "demangled": demangled_symbols[i]
-        })
+        variables.append({"mangled": symbols[i], "demangled": demangled_symbols[i]})
 
 # Match virtual functions to demangled functions
-non_virtual_functions = filter(lambda f: "virtual" not in f["demangled"], functions)
+unordered_non_virtual_functions = filter(lambda f: "virtual" not in f["demangled"], functions)
+non_virtual_functions = []
 virtual_functions = []
 
 monitor.initialize(len(vtable_data))
@@ -72,10 +80,7 @@ monitor.setMessage("Matching functions from Vtable to parsed functions")
 for entry in vtable_data:
     monitor.incrementProgress(1)
 
-    filtered_func = filter(
-        lambda f: do_functions_match(f, entry),
-        functions
-    )
+    filtered_func = filter(lambda f: do_functions_match(f, entry), functions)
 
     if len(filtered_func) != 1:
         print("Failed to find: " + entry["name"])
@@ -83,8 +88,28 @@ for entry in vtable_data:
 
     virtual_functions.append(filtered_func[0])
 
+# Arbitrary order for non virtal functions, organising by visibility
+non_virtual_functions += (list(filter(
+    lambda f: "public" in f["demangled"],
+    unordered_non_virtual_functions
+)))
+
+non_virtual_functions += (list(filter(
+    lambda f: "private" in f["demangled"],
+    unordered_non_virtual_functions
+)))
+
+non_virtual_functions += (list(filter(
+    lambda f: "protected" in f["demangled"],
+    unordered_non_virtual_functions
+)))
+
+
+
 # Generate Header and Vtable
-header_text, symbol_map_text = HeaderLib(class_name, virtual_functions, non_virtual_functions, variables).generate()
+header_text, symbol_map_text = HeaderLib(
+    class_name, virtual_functions, non_virtual_functions, variables
+).generate()
 
 with open(header_path, "w") as header_file:
     header_file.write(header_text)

@@ -14,6 +14,7 @@ def find_labels_of_class(currentProgram, monitor, class_name):
 
     label_pattern = re.compile(r"\??\?([A-Za-z_]*)@@?" + class_name + r"@.*")
     dtor_pattern = re.compile(r"\?\?1" + class_name + r"@.*")
+    ctor_pattern = re.compile(r"\?\?0" + class_name + r"@.*")
 
     monitor.initialize(len(labels))
     monitor.setMessage("Filtering all BDS labels")
@@ -26,6 +27,9 @@ def find_labels_of_class(currentProgram, monitor, class_name):
             filtered_labels.append(label.name)
 
         elif dtor_pattern.match(label.name) is not None:
+            filtered_labels.append(label.name)
+
+        elif ctor_pattern.match(label.name) is not None:
             filtered_labels.append(label.name)
 
             

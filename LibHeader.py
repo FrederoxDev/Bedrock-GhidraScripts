@@ -5,12 +5,23 @@ class HeaderLib:
         self.class_set = set()
         self.struct_set = set()
         self.enum_set = set()
+        self.demangled_set = set()
         self.virtual_functions = virtual_functions
         self.non_virtual_functions = non_virtual_functions
         self.variables = variables
         self.class_name = class_name
         self.last_modifier = ""
         self.text = ""
+
+        self.symbol_map = {
+            "vtable": [
+                {
+                    "name": self.class_name,
+                    "address": "",
+                    "functions": []
+                }
+            ]
+        }
 
     def parse_args(self, args):
         """
@@ -32,14 +43,22 @@ class HeaderLib:
         """
         Parses function data
         """
+        if function["demangled"] in self.demangled_set:
+            print("Skipping duplicate: " + function["name"])
+            return
+        
+        self.demangled_set.add(function["demangled"])
+
+        self.symbol_map["vtable"][0]["functions"].append(function["mangled"])
+        
         # Generate incomplete types from return type
         if function["returns"]["is_struct"]:
             self.struct_set.add(function["returns"]["base_type"])
 
-        elif function["returns"]["is_enum"]:
+        if function["returns"]["is_enum"]:
             self.enum_set.add(function["returns"]["base_type"])
 
-        elif function["returns"]["is_class"]:
+        if function["returns"]["is_class"]:
             self.class_set.add(function["returns"]["base_type"])
 
         # Function modifiers
@@ -86,30 +105,26 @@ class HeaderLib:
                 self.class_set.add(arg["base_type"])
 
         # Add function arguments
-        signature += self.parse_args(function["args"]) + ");\n"
+        signature += self.parse_args(function["args"]) + ")"
+        if function["is_const"]:
+            signature += " const"
+        signature += ";\n"
         self.text += signature
 
     def generate(self):
         header_text = "// File automatically generated from GenerateHeader.py\n"
         header_text += "// https://github.com/FrederoxDev/Bedrock-GhidraScripts\n\n"
 
-        symbol_map = {
-            "vtable": [
-                {
-                    "name": self.class_name,
-                    "address": "",
-                    "functions": []
-                }
-            ]
-        }
-
         for function in self.virtual_functions:
             self.parse_function(function)
-            symbol_map["vtable"][0]["functions"].append(function["mangled"])
 
+        self.text += "\n// Begin Non-Virtual Functions\n"
         for function in self.non_virtual_functions:
             self.parse_function(function)
-            symbol_map["vtable"][0]["functions"].append(function["mangled"])
+
+        self.text += "\n// Begin Variables\n"
+        for variable in self.variables:
+            self.text += "// " + variable["demangled"] + ";\n"
 
         # Generate incomplete types
         header_text += "#pragma once\n"
@@ -126,19 +141,16 @@ class HeaderLib:
 
         for enum_name in self.enum_set:
             if "::" in enum_name:
-                header_text += "//"
+                header_text += "// "
             header_text += "enum " + enum_name + ";\n"
 
         header_text += "\n"
-
-        for var in self.variables:
-            header_text += "// " + var["demangled"] + "\n"
 
         # Main class file
         header_text += "\nclass Item {\n"
         header_text += self.text
         header_text += "};"
 
-        header_vtable = json.dumps(symbol_map, indent=4)
+        header_vtable = json.dumps(self.symbol_map, indent=4)
 
         return header_text, header_vtable
