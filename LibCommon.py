@@ -12,7 +12,7 @@ def find_labels_of_class(currentProgram, monitor, class_name):
     labels = list(symbolTable.getAllSymbols(True))
     labels = filter(lambda s: s.getSymbolType() == SymbolType.LABEL, labels)
 
-    label_pattern = re.compile(r"\??\?([A-Za-z_]*)@" + class_name + r"@.*")
+    label_pattern = re.compile(r"\??\?([A-Za-z_]*)@@?" + class_name + r"@.*")
     dtor_pattern = re.compile(r"\?\?1" + class_name + r"@.*")
 
     monitor.initialize(len(labels))
@@ -24,9 +24,10 @@ def find_labels_of_class(currentProgram, monitor, class_name):
 
         if label_pattern.match(label.name) is not None:
             filtered_labels.append(label.name)
-        
+
         elif dtor_pattern.match(label.name) is not None:
             filtered_labels.append(label.name)
+
             
     return filtered_labels
 

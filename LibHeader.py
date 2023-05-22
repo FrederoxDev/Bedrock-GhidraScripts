@@ -1,9 +1,14 @@
+import json
+
 class HeaderLib:
-    def __init__(self, virtual_functions):
+    def __init__(self, class_name, virtual_functions, non_virtual_functions, variables):
         self.class_set = set()
         self.struct_set = set()
         self.enum_set = set()
         self.virtual_functions = virtual_functions
+        self.non_virtual_functions = non_virtual_functions
+        self.variables = variables
+        self.class_name = class_name
         self.last_modifier = ""
         self.text = ""
 
@@ -84,12 +89,27 @@ class HeaderLib:
         signature += self.parse_args(function["args"]) + ");\n"
         self.text += signature
 
-    def to_text(self):
+    def generate(self):
         header_text = "// File automatically generated from GenerateHeader.py\n"
         header_text += "// https://github.com/FrederoxDev/Bedrock-GhidraScripts\n\n"
 
+        symbol_map = {
+            "vtable": [
+                {
+                    "name": self.class_name,
+                    "address": "",
+                    "functions": []
+                }
+            ]
+        }
+
         for function in self.virtual_functions:
             self.parse_function(function)
+            symbol_map["vtable"][0]["functions"].append(function["mangled"])
+
+        for function in self.non_virtual_functions:
+            self.parse_function(function)
+            symbol_map["vtable"][0]["functions"].append(function["mangled"])
 
         # Generate incomplete types
         header_text += "#pragma once\n"
@@ -109,9 +129,16 @@ class HeaderLib:
                 header_text += "//"
             header_text += "enum " + enum_name + ";\n"
 
+        header_text += "\n"
+
+        for var in self.variables:
+            header_text += "// " + var["demangled"] + "\n"
+
         # Main class file
         header_text += "\nclass Item {\n"
         header_text += self.text
         header_text += "};"
 
-        return header_text
+        header_vtable = json.dumps(symbol_map, indent=4)
+
+        return header_text, header_vtable

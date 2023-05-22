@@ -20,9 +20,13 @@ with open(vtable_data_path, "r") as vtable_file:
 header_path = str(askFile("Header Output", "Choose File"))
 print("Header Output Path: '" + header_path + "'")
 
+symbol_map_path = str(askFile("Symbol Map Output", "Choose File"))
+print("Symbol Map Output Path: '" + symbol_map_path + "'")
+
 # Finds all symbols which belong to the class and demangle them into functions
 symbols = find_labels_of_class(currentProgram, monitor, class_name)
 demangled_symbols = batch_demangle(monitor, symbols)
+
 
 # Sort out the symbols into functions and variables
 # Also parse name and arguments for functions
@@ -58,11 +62,13 @@ for i in range(len(symbols)):
         })
 
 # Match virtual functions to demangled functions
+non_virtual_functions = filter(lambda f: "virtual" not in f["demangled"], functions)
 virtual_functions = []
 
 monitor.initialize(len(vtable_data))
 monitor.setMessage("Matching functions from Vtable to parsed functions")
 
+# Order virtual functions
 for entry in vtable_data:
     monitor.incrementProgress(1)
 
@@ -77,8 +83,11 @@ for entry in vtable_data:
 
     virtual_functions.append(filtered_func[0])
 
-# Generate header file
+# Generate Header and Vtable
+header_text, symbol_map_text = HeaderLib(class_name, virtual_functions, non_virtual_functions, variables).generate()
+
 with open(header_path, "w") as header_file:
-    header_file.write(
-        HeaderLib(virtual_functions).to_text()
-    )
+    header_file.write(header_text)
+
+with open(symbol_map_path, "w") as symbol_map_file:
+    symbol_map_file.write(symbol_map_text)
