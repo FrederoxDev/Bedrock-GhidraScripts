@@ -92,13 +92,21 @@ class HeaderLib:
             self.parse_function(function)
 
         # Generate incomplete types
+        header_text += "#pragma once\n"
+        header_text += "#include <string>\n"
         for class_name_i in self.class_set:
+            if "::" in class_name_i:
+                header_text += "// "
             header_text += "class " + class_name_i + ";\n"
 
         for struct_name in self.struct_set:
+            if "::" in struct_name:
+                header_text += "// "
             header_text += "struct " + struct_name + ";\n"
 
         for enum_name in self.enum_set:
+            if "::" in enum_name:
+                header_text += "//"
             header_text += "enum " + enum_name + ";\n"
 
         # Main class file
