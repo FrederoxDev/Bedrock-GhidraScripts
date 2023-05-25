@@ -86,7 +86,7 @@ def get_arguments(demangled):
     return new_parameters
 
 
-def get_return_type(demangled):
+def get_return_type(class_name, demangled):
     demangled = (
         demangled.replace("public: ", "")
         .replace("private: ", "")
@@ -94,7 +94,7 @@ def get_return_type(demangled):
         .replace("virtual ", "")
         .replace("protected: ", "")
     )
-    demangled = demangled[0 : demangled.find("Item::")]
+    demangled = demangled[0 : demangled.find(class_name + "::")]
 
     is_return_const = "const" in demangled
     is_return_ptr = "*" in demangled

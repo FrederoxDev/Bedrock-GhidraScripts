@@ -50,11 +50,12 @@ for i in range(len(symbols)):
 
         functions.append(
             {
+                "failed": False,
                 "mangled": symbols[i],
                 "demangled": demangled_symbols[i],
                 "name": get_name(class_name, demangled_symbols[i]),
                 "args": get_arguments(demangled_symbols[i]),
-                "returns": get_return_type(demangled_symbols[i]),
+                "returns": get_return_type(class_name, demangled_symbols[i]),
                 "is_const": is_return_const,
                 "is_virtual": "virtual" in demangled_symbols[i],
                 "is_static": "static" in demangled_symbols[i],
@@ -84,7 +85,12 @@ for entry in vtable_data:
 
     if len(filtered_func) != 1:
         print("Failed to find: " + entry["name"])
-        exit(1)
+        print(entry)
+        virtual_functions.append({
+            "failed": True,
+            "name": entry["name"]
+        })
+        continue
 
     virtual_functions.append(filtered_func[0])
 

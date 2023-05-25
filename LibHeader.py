@@ -20,7 +20,8 @@ class HeaderLib:
                     "address": "",
                     "functions": []
                 }
-            ]
+            ],
+            "functions": []
         }
 
     def parse_args(self, args):
@@ -39,17 +40,31 @@ class HeaderLib:
             .replace("'", "")
         )
 
-    def parse_function(self, function):
+    def parse_function(self, function, is_virtual):
         """
         Parses function data
         """
+        if function["failed"]:
+            self.text += "\t// " + function["name"] + "\n"
+            if is_virtual:
+                self.symbol_map["vtable"][0]["functions"].append("")
+                
+            return
+
         if function["demangled"] in self.demangled_set:
             print("Skipping duplicate: " + function["name"])
             return
         
         self.demangled_set.add(function["demangled"])
 
-        self.symbol_map["vtable"][0]["functions"].append(function["mangled"])
+        if is_virtual:
+            self.symbol_map["vtable"][0]["functions"].append(function["mangled"])
+
+        else:
+            self.symbol_map["functions"].append({
+                "name": function["mangled"],
+                "address": "0x0"
+            })
         
         # Generate incomplete types from return type
         if function["returns"]["is_struct"]:
@@ -116,11 +131,11 @@ class HeaderLib:
         header_text += "// https://github.com/FrederoxDev/Bedrock-GhidraScripts\n\n"
 
         for function in self.virtual_functions:
-            self.parse_function(function)
+            self.parse_function(function, True)
 
         self.text += "\n// Begin Non-Virtual Functions\n"
         for function in self.non_virtual_functions:
-            self.parse_function(function)
+            self.parse_function(function, False)
 
         self.text += "\n// Begin Variables\n"
         for variable in self.variables:
@@ -147,7 +162,7 @@ class HeaderLib:
         header_text += "\n"
 
         # Main class file
-        header_text += "\nclass Item {\n"
+        header_text += "\nclass " + self.class_name +" {\n"
         header_text += self.text
         header_text += "};"
 
