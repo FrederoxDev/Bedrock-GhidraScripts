@@ -12,7 +12,7 @@ from LibFunctionParser import (
 from LibHeader import HeaderLib
 import json
 
-class_name = "Item"
+class_name = str(askString(None, "Enter Class Name: "))
 
 # Import dumped virtual table from the Android Client
 vtable_data_path = str(askFile("Vtable Data", "Choose File"))
@@ -85,7 +85,6 @@ for entry in vtable_data:
 
     if len(filtered_func) != 1:
         print("Failed to find: " + entry["name"])
-        print(entry)
         virtual_functions.append({
             "failed": True,
             "name": entry["name"]

@@ -40,7 +40,7 @@ def demangle(symbol):
     """
     Demangles a mangled function name using undname.exe from Visual Studio
     """
-    undname_path = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.35.32215\\bin\\Hostx86\\arm\\undname.exe"
+    undname_path = "C:\\Program Files\\Microsoft Visual Studio\\2022\Community\\VC\\Tools\\MSVC\\14.36.32532\\bin\\Hostx86\\arm\\undname.exe"
 
     # Run undname with the arg as the symbol name
     process = subprocess.Popen(

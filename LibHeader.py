@@ -48,6 +48,12 @@ class HeaderLib:
             self.text += "\t// " + function["name"] + "\n"
             if is_virtual:
                 self.symbol_map["vtable"][0]["functions"].append("")
+
+            else:
+                self.symbol_map["functions"].append({
+                "name": "",
+                "address": "0x0"
+            })
                 
             return
 
