@@ -11,22 +11,24 @@ from LibFunctionParser import (
 )
 from LibHeader import HeaderLib
 import json
+import os
 
-class_name = str(askString(None, "Enter Class Name: "))
+desktop_path = os.path.expandvars("%userprofile%\\Desktop\\HeaderOut")
+vtable_data_path = desktop_path + "\\dumpedVtable.json"
 
 # Import dumped virtual table from the Android Client
-vtable_data_path = str(askFile("Vtable Data", "Choose File"))
-print("Vtable Path: '" + vtable_data_path + "'")
 vtable_data = None
 
 with open(vtable_data_path, "r") as vtable_file:
     vtable_data = json.loads(vtable_file.read())
 
-header_path = str(askFile("Header Output", "Choose File"))
-print("Header Output Path: '" + header_path + "'")
+class_name = vtable_data["class_name"]
+inherits = vtable_data["inherits"]
 
-symbol_map_path = str(askFile("Symbol Map Output", "Choose File"))
-print("Symbol Map Output Path: '" + symbol_map_path + "'")
+print("Generating: " + class_name)
+
+header_path = desktop_path + "\\" + class_name + ".h"
+symbol_map_path = desktop_path + "\\" + class_name + ".json"
 
 # Finds all symbols which belong to the class and demangle them into functions
 symbols = find_labels_of_class(currentProgram, monitor, class_name)
@@ -74,21 +76,29 @@ unordered_non_virtual_functions = filter(lambda f: "virtual" not in f["demangled
 non_virtual_functions = []
 virtual_functions = []
 
-monitor.initialize(len(vtable_data))
+monitor.initialize(len(vtable_data["functions"]))
 monitor.setMessage("Matching functions from Vtable to parsed functions")
 
 # Order virtual functions
-for entry in vtable_data:
+for entry in vtable_data["functions"]:
     monitor.incrementProgress(1)
+
+    if entry["failed"]:
+        virtual_functions.append({
+            "failed": True,
+            "name": "Unknown pure virtual"
+        })
+        continue
 
     filtered_func = filter(lambda f: do_functions_match(f, entry), functions)
 
     if len(filtered_func) != 1:
-        print("Failed to find: " + entry["name"])
+        print(" - Failed to find: " + entry["name"])
         virtual_functions.append({
             "failed": True,
             "name": entry["name"]
         })
+
         continue
 
     virtual_functions.append(filtered_func[0])

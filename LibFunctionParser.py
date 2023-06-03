@@ -2,6 +2,9 @@
 type_aliases = {
     "std::__ndk1::basic_string<char,std::__ndk1::char_traits<char>,std::__ndk1::allocator<char> >": "std::string",
     "std::basic_string<char,std::char_traits<char>,std::allocator<char> >": "std::string",
+    "std::__1::basic_string<char,std::__1::char_traits<char>,std::__1::allocator<char>>": "std::string",
+    "std::basic_string<char,struct std::char_traits<char>,class std::allocator<char>>": "std::string",
+    "std::basic_string<char,std::char_traits<char>,std::allocator<char>>": "std::string"
 }
 
 
@@ -29,6 +32,10 @@ def get_name(class_name, demangled):
     ]
 
 
+def get_class_name(demangled):
+    return demangled.split("::")[0]
+
+
 def get_arguments(demangled):
     parameters_str = _split_arguments(
         demangled[demangled.find("(") + 1 : demangled.find(")")]
@@ -52,6 +59,9 @@ def get_arguments(demangled):
         param_class_name = (
             parameter_str.replace("*", "").replace("&", "").replace("const", "").strip()
         )
+        param_class_name = param_class_name.replace(", ", ",")
+        param_class_name = param_class_name.replace(" ", "")
+
         stringified = ""
 
         if is_const:
@@ -61,10 +71,7 @@ def get_arguments(demangled):
             stringified += "*"
         if is_reference:
             stringified += "&"
-
-        stringified = stringified.replace(", ", ",")
-        param_class_name = param_class_name.replace(", ", ",")
-
+        
         for type_name, alias in type_aliases.items():
             stringified = stringified.replace(type_name, alias)
             param_class_name = param_class_name.replace(type_name, alias)
