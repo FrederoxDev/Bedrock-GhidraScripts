@@ -84,6 +84,7 @@ for entry in vtable_data["functions"]:
     monitor.incrementProgress(1)
 
     if entry["failed"]:
+        print(" - Unknown pure virtual function")
         virtual_functions.append({
             "failed": True,
             "name": "Unknown pure virtual"
